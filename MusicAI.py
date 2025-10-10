@@ -1,4 +1,6 @@
+import ast
 import os
+from datetime import datetime
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -10,6 +12,7 @@ import librosa.display
 import argparse
 import tensorflow as tf
 from tensorflow import keras
+from keras.callbacks import ModelCheckpoint
 from keras.models import Sequential
 from keras.layers import Dense,Dropout,Activation
 from keras.optimizers import Adam
@@ -41,6 +44,11 @@ def extract_features(dataset):
     extracted_features_dataframe=pd.DataFrame(extracted_features,columns=['features','class'])
     return extracted_features_dataframe
 
+def parse_feature_string(s):
+    # remove brackets if present, split by spaces, convert to float
+    s = s.strip("[]")
+    return np.array([float(x) for x in s.split()], dtype=np.float32)
+
 def create_model(labels):
     model=Sequential()
     model.add(Dense(100,input_shape=(40,)))
@@ -67,11 +75,40 @@ def create_model(labels):
     model.summary()
     return model
 
+def plot_accuracy_loss(history):
+    """
+        Plot the accuracy and the loss during the training of the nn.
+    """
+    fig = plt.figure(figsize=(10,5))
+
+    # Plot accuracy
+    plt.subplot(221)
+    plt.plot(history.history['accuracy'],'bo--', label = "accuracy")
+    plt.plot(history.history['val_accuracy'], 'ro--', label = "val_accuracy")
+    plt.title("train_accuracy vs val_accuracy")
+    plt.ylabel("accuracy")
+    plt.xlabel("epochs")
+    plt.legend()
+
+    # Plot loss function
+    plt.subplot(222)
+    plt.plot(history.history['loss'],'bo--', label = "loss")
+    plt.plot(history.history['val_loss'], 'ro--', label = "val_loss")
+    plt.title("train_loss vs val_loss")
+    plt.ylabel("loss")
+    plt.xlabel("epochs")
+
+    plt.legend()
+    plt.show()
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--plot", choices=["train", "test"],
                         help="Choose which dataset to plot (train or test)", default=None)
     parser.add_argument("--extract", help="Extract features from train data set", action="store_true")
+    parser.add_argument("--createModel", help="Create a new model", action="store_true")
+    parser.add_argument("--epochs", type=int, help="Number of epochs", default=100)
+    parser.add_argument("--batchSize", type=int, help="Batch size", default=32)
     args=parser.parse_args()
 
     # Load datasets
@@ -88,22 +125,38 @@ def main():
         dataset_features.to_csv('extracted_features.csv', sep=',', encoding='utf-8', index=False, header=True)
     else:
         dataset_features=pd.read_csv("extracted_features.csv")
+        dataset_features["features"] = dataset_features["features"].apply(parse_feature_string)
 
-    x_axis=np.array(dataset_features["features"].tolist())
-    y_axis=np.array(dataset_features["class"].tolist())
+    if args.createModel:
+        x_axis=np.array(dataset_features["features"].tolist(), dtype=np.float32)
+        y_axis=np.array(dataset_features["class"].tolist())
 
-    LE=LabelEncoder()
-    y_axis=to_categorical(LE.fit_transform(y_axis))
+        LE=LabelEncoder()
+        y_axis=to_categorical(LE.fit_transform(y_axis))
 
-    x_train,x_test,y_train,y_test=train_test_split(x_axis, y_axis,test_size=0.2,random_state=42)
+        x_train,x_test,y_train,y_test=train_test_split(x_axis, y_axis,test_size=0.2,random_state=42)
 
-    print("x_train:",x_train.shape)
-    print("x_test:",x_test.shape)
-    print("y_train:",y_train.shape)
-    print("y_test:",y_test.shape)
+        num_labels=y_axis.shape[1]
+        created_model=create_model(num_labels)
 
-    num_labels=y_axis.shape[1]
-    create_model(num_labels)
+        num_epochs=args.epochs
+        num_batch_size=args.batchSize
+
+        checkpointer=ModelCheckpoint(filepath="saved_models/gladiador_audio_classification.keras",verbose=1,save_best_only=True)
+        start=datetime.now()
+        history = created_model.fit(
+            x_train, y_train,
+            batch_size=num_batch_size,
+            epochs=num_epochs,
+            validation_data=(x_test, y_test),
+            callbacks=[checkpointer]
+        )
+
+        duration=datetime.now()-start
+        print("Training Completed in time: ",duration)
+        plot_accuracy_loss(history)
+        test_accuracy=created_model.evaluate(x_test,y_test,batch_size=128,verbose=0)
+        print(test_accuracy[1])
 
 if __name__ == "__main__":
     main()
