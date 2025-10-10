@@ -45,6 +45,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--plot", choices=["train", "test"],
                         help="Choose which dataset to plot (train or test)", default=None)
+    parser.add_argument("--extract", help="Extract features from train data set", action="store_true")
     args=parser.parse_args()
 
     # Load datasets
@@ -56,10 +57,15 @@ def main():
     elif args.plot == "test":
         plot_dataset(dataset_test)
 
-    dataset_features=extract_features(dataset_train)
-    print(dataset_features.head(5))
+    if args.extract:
+        dataset_features=extract_features(dataset_train)
+        print(dataset_features.head(5))
+        dataset_features.to_csv('extracted_features.csv', sep=',', encoding='utf-8', index=False, header=True)
+    else:
+        dataset_features=pd.read_csv("extracted_features.csv")
+        print(dataset_features.columns)
 
-    x_axis=np.array(dataset_features['features'].tolist())
+    x_axis=np.array(dataset_features["features"].tolist())
     y_axis=np.array(dataset_features["class"].tolist())
 
     LE=LabelEncoder()
