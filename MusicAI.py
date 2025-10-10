@@ -41,6 +41,32 @@ def extract_features(dataset):
     extracted_features_dataframe=pd.DataFrame(extracted_features,columns=['features','class'])
     return extracted_features_dataframe
 
+def create_model(labels):
+    model=Sequential()
+    model.add(Dense(100,input_shape=(40,)))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.3))
+
+    model.add(Dense(200))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.3))
+
+    model.add(Dense(200))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.3))
+
+    model.add(Dense(100))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.3))
+
+    model.add(Dense(labels))
+    model.add(Activation('softmax'))
+    
+    model.compile(loss='categorical_crossentropy',metrics=['accuracy'],optimizer='adam')
+
+    model.summary()
+    return model
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--plot", choices=["train", "test"],
@@ -59,11 +85,9 @@ def main():
 
     if args.extract:
         dataset_features=extract_features(dataset_train)
-        print(dataset_features.head(5))
         dataset_features.to_csv('extracted_features.csv', sep=',', encoding='utf-8', index=False, header=True)
     else:
         dataset_features=pd.read_csv("extracted_features.csv")
-        print(dataset_features.columns)
 
     x_axis=np.array(dataset_features["features"].tolist())
     y_axis=np.array(dataset_features["class"].tolist())
@@ -79,7 +103,7 @@ def main():
     print("y_test:",y_test.shape)
 
     num_labels=y_axis.shape[1]
-    print(num_labels)
+    create_model(num_labels)
 
 if __name__ == "__main__":
     main()
