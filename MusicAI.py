@@ -1,6 +1,7 @@
 import ast
 import os
 from datetime import datetime
+import random
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -16,6 +17,7 @@ from keras.callbacks import ModelCheckpoint
 from keras.models import Sequential
 from keras.layers import Dense,Dropout,Activation
 from keras.optimizers import Adam
+from keras.models import load_model
 from keras.utils import to_categorical
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
@@ -107,8 +109,9 @@ def main():
                         help="Choose which dataset to plot (train or test)", default=None)
     parser.add_argument("--extract", help="Extract features from train data set", action="store_true")
     parser.add_argument("--createModel", help="Create a new model", action="store_true")
-    parser.add_argument("--epochs", type=int, help="Number of epochs", default=100)
+    parser.add_argument("--epochs", type=int, help="Number of epochs", default=500)
     parser.add_argument("--batchSize", type=int, help="Batch size", default=32)
+    parser.add_argument("--test", type=int, help="Amount of tests", default=5)
     args=parser.parse_args()
 
     # Load datasets
@@ -127,13 +130,13 @@ def main():
         dataset_features=pd.read_csv("extracted_features.csv")
         dataset_features["features"] = dataset_features["features"].apply(parse_feature_string)
 
+    LE=LabelEncoder()
+    x_axis=np.array(dataset_features["features"].tolist(), dtype=np.float32)
+    y_axis=np.array(dataset_features["class"].tolist())
+
+    y_axis=to_categorical(LE.fit_transform(y_axis))
+
     if args.createModel:
-        x_axis=np.array(dataset_features["features"].tolist(), dtype=np.float32)
-        y_axis=np.array(dataset_features["class"].tolist())
-
-        LE=LabelEncoder()
-        y_axis=to_categorical(LE.fit_transform(y_axis))
-
         x_train,x_test,y_train,y_test=train_test_split(x_axis, y_axis,test_size=0.2,random_state=42)
 
         num_labels=y_axis.shape[1]
@@ -157,6 +160,24 @@ def main():
         plot_accuracy_loss(history)
         test_accuracy=created_model.evaluate(x_test,y_test,batch_size=128,verbose=0)
         print(test_accuracy[1])
+
+
+    model=load_model("saved_models/gladiador_audio_classification.keras")
+    folder_path="Dataset/Musicas/Test_submission/Test_submission"
+
+    files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+
+    for i in range(args.test):
+        random_file=random.choice(files)
+        print("Random file to test:", random_file)
+
+        audio,sample_rate=librosa.load(os.path.join(folder_path, random_file),res_type='kaiser_fast')
+        mfccs_features=librosa.feature.mfcc(y=audio,sr=sample_rate,n_mfcc=40)
+        mfccs_scaled_features =np.mean(mfccs_features.T,axis=0)
+        mfccs_scaled_features=mfccs_scaled_features.reshape(1,-1)
+        predicted_label = np.argmax(model.predict(mfccs_scaled_features), axis=-1)
+        prediction_class=LE.inverse_transform(predicted_label)
+        print(prediction_class)
 
 if __name__ == "__main__":
     main()
