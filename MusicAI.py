@@ -13,10 +13,11 @@ import librosa.display
 import argparse
 import tensorflow as tf
 from tensorflow import keras
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.models import Sequential
 from keras.layers import Dense,Dropout,Activation
 from keras.optimizers import Adam
+from keras.layers import BatchNormalization
 from keras.models import load_model
 from keras.utils import to_categorical
 from sklearn.preprocessing import LabelEncoder
@@ -53,19 +54,20 @@ def parse_feature_string(s):
 
 def create_model(labels):
     model=Sequential()
-    model.add(Dense(100,input_shape=(40,)))
+    model.add(Dense(128,input_shape=(40,)))
+    model.add(BatchNormalization())
     model.add(Activation('relu'))
     model.add(Dropout(0.3))
 
-    model.add(Dense(200))
+    model.add(Dense(256))
     model.add(Activation('relu'))
-    model.add(Dropout(0.3))
+    model.add(Dropout(0.4))
 
-    model.add(Dense(200))
+    model.add(Dense(256))
     model.add(Activation('relu'))
-    model.add(Dropout(0.3))
+    model.add(Dropout(0.4))
 
-    model.add(Dense(100))
+    model.add(Dense(128))
     model.add(Activation('relu'))
     model.add(Dropout(0.3))
 
@@ -109,8 +111,8 @@ def main():
                         help="Choose which dataset to plot (train or test)", default=None)
     parser.add_argument("--extract", help="Extract features from train data set", action="store_true")
     parser.add_argument("--createModel", help="Create a new model", action="store_true")
-    parser.add_argument("--epochs", type=int, help="Number of epochs", default=500)
-    parser.add_argument("--batchSize", type=int, help="Batch size", default=32)
+    parser.add_argument("--epochs", type=int, help="Number of epochs", default=5000)
+    parser.add_argument("--batchSize", type=int, help="Batch size", default=64)
     parser.add_argument("--test", type=int, help="Amount of tests", default=5)
     args=parser.parse_args()
 
@@ -146,13 +148,14 @@ def main():
         num_batch_size=args.batchSize
 
         checkpointer=ModelCheckpoint(filepath="saved_models/gladiador_audio_classification.keras",verbose=1,save_best_only=True)
+        early_stop = EarlyStopping(monitor='val_loss', patience=20,  restore_best_weights=True)
         start=datetime.now()
         history = created_model.fit(
             x_train, y_train,
             batch_size=num_batch_size,
             epochs=num_epochs,
             validation_data=(x_test, y_test),
-            callbacks=[checkpointer]
+            callbacks=[checkpointer, early_stop]
         )
 
         duration=datetime.now()-start
