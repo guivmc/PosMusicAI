@@ -31,6 +31,9 @@ def plot_dataset(df):
     plt.show()
 
 def mfccs_feature_extractor(file_name):
+    """
+       Computes the mean across all time frames for each MFCC coefficient, resulting in a 1D vector.
+    """
     audio,sample_rate=librosa.load(file_name,res_type='kaiser_fast')
     mfccs_features=librosa.feature.mfcc(y=audio,sr=sample_rate,n_mfcc=40)
     mfccs_scaled_features =np.mean(mfccs_features.T,axis=0)
@@ -81,7 +84,7 @@ def create_model(labels):
 
 def plot_accuracy_loss(history):
     """
-        Plot the accuracy and the loss during the training of the nn.
+        Plot the accuracy and the loss during the training.
     """
     fig = plt.figure(figsize=(10,5))
 
@@ -125,6 +128,7 @@ def main():
     elif args.plot == "test":
         plot_dataset(dataset_test)
 
+    # Extract features
     if args.extract:
         dataset_features=extract_features(dataset_train)
         dataset_features.to_csv('extracted_features.csv', sep=',', encoding='utf-8', index=False, header=True)
