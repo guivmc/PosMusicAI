@@ -22,6 +22,7 @@ from keras.models import load_model
 from keras.utils import to_categorical
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, classification_report
 
 def plot_dataset(df):
     print(df['Class'].value_counts())
@@ -116,7 +117,6 @@ def main():
     parser.add_argument("--createModel", help="Create a new model", action="store_true")
     parser.add_argument("--epochs", type=int, help="Number of epochs", default=5000)
     parser.add_argument("--batchSize", type=int, help="Batch size", default=64)
-    parser.add_argument("--test", type=int, help="Amount of tests", default=5)
     args=parser.parse_args()
 
     # Load datasets
@@ -138,8 +138,8 @@ def main():
 
     LE=LabelEncoder()
     x_axis=np.array(dataset_features["features"].tolist(), dtype=np.float32)
-    y_axis=np.array(dataset_features["class"].tolist())
-
+    classes=dataset_features["class"].tolist()
+    y_axis=np.array(classes)
     y_axis=to_categorical(LE.fit_transform(y_axis))
 
     if args.createModel:
@@ -171,20 +171,32 @@ def main():
 
     model=load_model("saved_models/gladiador_audio_classification.keras")
     folder_path="Dataset/Musicas/Test_submission/Test_submission"
+    y_true=[]
+    y_pred=[]
 
-    files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+    for index, row in dataset_test.iterrows():
+        print("File to test:", row["FileName"])
+        print("Expected class:", row["Class"])
 
-    for i in range(args.test):
-        random_file=random.choice(files)
-        print("Random file to test:", random_file)
-
-        audio,sample_rate=librosa.load(os.path.join(folder_path, random_file),res_type='kaiser_fast')
+        y_true.append(row["Class"])
+   
+        audio,sample_rate=librosa.load(os.path.join(folder_path, row["FileName"]),res_type='kaiser_fast')
         mfccs_features=librosa.feature.mfcc(y=audio,sr=sample_rate,n_mfcc=40)
         mfccs_scaled_features =np.mean(mfccs_features.T,axis=0)
         mfccs_scaled_features=mfccs_scaled_features.reshape(1,-1)
         predicted_label = np.argmax(model.predict(mfccs_scaled_features), axis=-1)
         prediction_class=LE.inverse_transform(predicted_label)
-        print(prediction_class)
+        y_pred.append(prediction_class)
+
+    cm=confusion_matrix(y_true, y_pred, labels=LE.classes_)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=LE.classes_, yticklabels=LE.classes_)
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title('Confusion Matrix')
+    plt.show()
+
+    print(classification_report(y_true, y_pred, target_names=LE.classes_))
 
 if __name__ == "__main__":
     main()
