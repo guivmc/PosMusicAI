@@ -136,12 +136,14 @@ def main():
         dataset_features=pd.read_csv("extracted_features.csv")
         dataset_features["features"] = dataset_features["features"].apply(parse_feature_string)
 
+    # Get Labels
     LE=LabelEncoder()
     x_axis=np.array(dataset_features["features"].tolist(), dtype=np.float32)
     classes=dataset_features["class"].tolist()
     y_axis=np.array(classes)
     y_axis=to_categorical(LE.fit_transform(y_axis))
 
+    # Train new model
     if args.createModel:
         x_train,x_test,y_train,y_test=train_test_split(x_axis, y_axis,test_size=0.2,random_state=42)
 
@@ -169,6 +171,7 @@ def main():
         print(test_accuracy[1])
 
 
+    # Test model
     model=load_model("saved_models/gladiador_audio_classification.keras")
     folder_path="Dataset/Musicas/Test_submission/Test_submission"
     y_true=[]
@@ -179,15 +182,19 @@ def main():
         print("Expected class:", row["Class"])
 
         y_true.append(row["Class"])
-   
+
+        # Extract features
         audio,sample_rate=librosa.load(os.path.join(folder_path, row["FileName"]),res_type='kaiser_fast')
         mfccs_features=librosa.feature.mfcc(y=audio,sr=sample_rate,n_mfcc=40)
         mfccs_scaled_features =np.mean(mfccs_features.T,axis=0)
         mfccs_scaled_features=mfccs_scaled_features.reshape(1,-1)
+
+        # Predict using model
         predicted_label = np.argmax(model.predict(mfccs_scaled_features), axis=-1)
         prediction_class=LE.inverse_transform(predicted_label)
         y_pred.append(prediction_class)
 
+    # Create confusion matrix
     cm=confusion_matrix(y_true, y_pred, labels=LE.classes_)
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=LE.classes_, yticklabels=LE.classes_)
